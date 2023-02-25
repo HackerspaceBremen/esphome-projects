@@ -1,0 +1,181 @@
+esphome:
+  name: rack-light
+  comment: Software 2023 by ccoors, see https://github.com/ccoors/hshb-pixels
+
+esp32:
+  board: esp-wrover-kit
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  # Disable reboot if no client connects
+  reboot_timeout: 0s
+
+ota:
+  id: ota_comp
+  password: ""
+
+web_server:
+  ota: false
+  local: true
+
+wifi:
+  id: wifi_comp
+  networks: !secret wifi_networks
+  power_save_mode: none
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "HSHB Rack Light Fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+  - platform: esp32_hall
+    name: "ESP32 Hall Sensor"
+    update_interval: 60s
+  - platform: sun
+    name: Sun Elevation
+    type: elevation
+  - platform: sun
+    name: Sun Azimuth
+    type: azimuth
+
+text_sensor:
+  - platform: sun
+    name: Sun Next Sunrise
+    type: sunrise
+  - platform: sun
+    name: Sun Next Sunset
+    type: sunset
+
+http_request:
+  id: http_request_data
+  useragent: esphome/hshb-rack-light
+  timeout: 5s
+
+light:
+  - platform: monochromatic
+    name: "Left Light"
+    id: light_left
+    output: output_light_left
+    effects:
+      - pulse:
+  - platform: monochromatic
+    name: "Right Light"
+    id: light_right
+    output: output_light_right
+    effects:
+      - pulse:
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO21
+    id: manual_switch
+    name: "Manual switch"
+    filters:
+      - delayed_on_off: 10ms
+
+output:
+  - platform: ledc
+    id: output_light_left
+    pin: GPIO22
+  - platform: ledc
+    id: output_light_right
+    pin: GPIO23
+
+sun:
+  latitude: 53.075877777778°
+  longitude: 8.8073111111111°
+  id: sun_component
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+globals:
+  - id: space_open
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+interval:
+  - interval: 1min
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "Software 2023 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (id(manual_switch).state) {
+            // Manual mode, just turn lights on if off
+
+            if (!id(light_left).current_values.is_on()) {
+                ESP_LOGD("main", "Turning left light on");
+                id(light_left).turn_on().perform();
+            }
+            if (!id(light_right).current_values.is_on()) {
+                ESP_LOGD("main", "Turning right light on");
+                id(light_right).turn_on().perform();
+            }
+          } else {
+            // Auto mode, sun dictates light values
+            const auto sun_elevation = id(sun_component).elevation();
+            const auto sun_up = id(sun_component).elevation() > 5;
+            if (sun_up && id(space_open) == 1) {
+              if (id(light_left).current_values.is_on()) {
+                ESP_LOGD("main", "Turning left light off");
+                id(light_left).turn_off().perform();
+              }
+              if (id(light_right).current_values.is_on()) {
+                ESP_LOGD("main", "Turning right light off");
+                id(light_right).turn_off().perform();
+              }
+            } else {
+              if (!id(light_left).current_values.is_on()) {
+                ESP_LOGD("main", "Turning left light on");
+                id(light_left).turn_on().perform();
+              }
+              if (!id(light_right).current_values.is_on()) {
+                ESP_LOGD("main", "Turning right light on");
+                id(light_right).turn_on().perform();
+              }
+            }
+          }
+  - interval: 1min
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - if:
+                condition:
+                  binary_sensor.is_off: manual_switch
+                then:
+                  - http_request.get:
+                      verify_ssl: false
+                      url: https://hackerspacehb.appspot.com/v2/status
+                      on_response:
+                        then:
+                          - lambda: |-
+                              if (status_code == 200) {
+                                auto str = id(http_request_data).get_string();
+                                ESP_LOGD("main", "HTTP Response: %s", str);
+
+                                DynamicJsonDocument doc(2048);
+                                if (deserializeJson(doc, str) == DeserializationError::Ok) {
+                                    bool currently_open = doc["open"];
+                                    ESP_LOGD("main", "Space open: %d", currently_open);
+                                    id(space_open) = currently_open ? 1 : 0;
+                                } else {
+                                    ESP_LOGD("main", "JSON parse failed");
+                                }
+                              } else {
+                                ESP_LOGD("main", "HTTP error: %d", status_code);
+                              }

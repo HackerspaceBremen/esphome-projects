@@ -1,0 +1,229 @@
+esphome:
+  name: hshb-pixels
+  comment: Software 2023 by ccoors, see https://github.com/ccoors/hshb-pixels
+  includes:
+    - include/pixel-layout.h
+    - include/pixel-outline.h
+    - include/effects.h
+  on_boot:
+    priority: 600
+    then:
+      - lambda: |-
+          id(runlevel_600) = 1;
+          pixel_effects.apply_effect(id(led_matrix_light), id(led_matrix_display));
+
+esp32:
+  board: esp-wrover-kit
+  framework:
+    type: arduino
+
+logger:
+
+api:
+  # Disable reboot if no client connects
+  reboot_timeout: 0s
+
+ota:
+  id: ota_comp
+  password: ""
+
+web_server:
+  ota: false
+  local: true
+
+wifi:
+  id: wifi_comp
+  networks: !secret wifi_networks
+  power_save_mode: none
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "HSHB Pixels Fallback"
+    password: !secret ap_password
+
+captive_portal:
+
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+  - platform: esp32_hall
+    name: "ESP32 Hall Sensor"
+    update_interval: 60s
+
+globals:
+  - id: runlevel_600
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+http_request:
+  id: http_request_data
+  useragent: esphome/hshb-pixels
+  timeout: 5s
+
+animation:
+  - file: "waves.gif"
+    id: waves_animation
+    type: RGB24
+    resize: 15x19
+
+image:
+  - file: "wave_top.png"
+    id: wave_top
+    type: TRANSPARENT_BINARY
+
+font:
+  - file: "CG-pixel-3x5/CG pixel 3x5.ttf"
+    id: font_3x5
+    size: 5
+
+select:
+  - platform: template
+    id: effect_selector
+    name: "Select effect"
+    optimistic: false
+    update_interval: 10s
+    lambda: |-
+      return pixel_effects.get_effect();
+    options:
+      - "None"
+      - "Twinkle"
+      - "Rainbow"
+      - "Scan"
+      - "Outline"
+      - "Text"
+      - "Matrix"
+      - "Tide"
+      # - "Shapes"
+      - "Demo"
+    set_action:
+      then:
+        - lambda: |-
+            if (id(runlevel_600) == 1) {
+                pixel_effects.set_effect(x);
+                pixel_effects.apply_effect(id(led_matrix_light), id(led_matrix_display));
+            }
+
+light:
+  - platform: neopixelbus
+    variant: WS2812
+    pin: GPIO32
+    num_leds: 102
+    name: "led_matrix"
+    id: led_matrix_light
+    default_transition_length: 0s
+    restore_mode: ALWAYS_ON
+    internal: True
+    effects:
+      - addressable_twinkle:
+          name: "Twinkle"
+          twinkle_probability: 30%
+      - addressable_rainbow:
+          name: "Rainbow"
+          speed: 5
+          width: 200
+      - addressable_scan:
+          name: "Scan"
+          scan_width: 16
+          move_interval: 80ms
+
+number:
+  - platform: template
+    name: "Brightness"
+    optimistic: true
+    internal: true
+    min_value: 0
+    max_value: 100
+    initial_value: 70
+    step: 1
+    on_value:
+      then:
+        - lambda: |-
+            if (id(runlevel_600) == 1) {
+                auto light = id(led_matrix_light);
+                auto call = light->turn_on();
+                call.set_brightness(x/100.0);
+                call.perform();
+            }
+  - platform: template
+    name: "Tide override"
+    id: "tide_override"
+    optimistic: false
+    update_interval: 5s
+    lambda: |-
+      return tide_pixel_value;
+    min_value: 0
+    max_value: 21
+    step: 1
+    set_action:
+      then:
+        - lambda: |-
+            tide_pixel_value = x;
+
+display:
+  - platform: lcd_gpio
+    dimensions: 20x4
+    data_pins:
+      - GPIO27
+      - GPIO14
+      - GPIO33
+      - GPIO13
+    enable_pin: GPIO19
+    rs_pin: GPIO5
+    lambda: |-
+      if (id(wifi_comp)->is_connected()) {
+        auto ssid = id(wifi_comp)->wifi_ssid();
+        it.printf(0, 0, "%s", ssid.c_str());
+        auto ip_addr = id(wifi_comp)->get_ip_address();
+        it.printf(0, 1, "IP: %d.%d.%d.%d", ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+        // auto use_addr = id(wifi_comp)->get_use_address();
+        // it.printf(0, 2, "%s", use_addr.c_str());
+      } else {
+        it.print(0, 0, "No Wi-Fi");
+      }
+      pixel_effects.update_lcd(it);
+  - platform: addressable_light
+    id: led_matrix_display
+    addressable_light_id: led_matrix_light
+    width: 15
+    height: 19
+    rotation: 0°
+    update_interval: 16ms
+    pixel_mapper: |-
+      return pixel_address(x, y);
+    lambda: |-
+      pixel_effects.update_display(it);
+
+interval:
+  - interval: 0.05s
+    then:
+      - lambda: |-
+          pixel_effects.advance_frame();
+          id(waves_animation).next_frame();
+  - interval: 1min
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "Software 2023 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            wifi.connected:
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    if (request_tide_data) {
+                        request_tide_data = false;
+                        return true;
+                    }
+                    return false;
+                then:
+                  - http_request.get:
+                      verify_ssl: false
+                      url: https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/b26bfc88-eb8a-45b9-9dd0-0e41949a2648.json?includeTimeseries=true&includeCurrentMeasurement=true
+                      on_response:
+                        then:
+                          - lambda: |-
+                              parse_tide_response(status_code);
