@@ -128,7 +128,7 @@ interval:
             // Auto mode, sun dictates light values
             const auto sun_elevation = id(sun_component).elevation();
             const auto sun_up = id(sun_component).elevation() > 5;
-            if (sun_up && id(space_open) == 1) {
+            if (sun_up || id(space_open) == 0) {
               if (id(light_left).current_values.is_on()) {
                 ESP_LOGD("main", "Turning left light off");
                 id(light_left).turn_off().perform();
@@ -172,7 +172,7 @@ interval:
                                 if (deserializeJson(doc, str) == DeserializationError::Ok) {
                                     bool currently_open = doc["open"];
                                     ESP_LOGD("main", "Space open: %d", currently_open);
-                                    id(space_open) = currently_open ? 1 : 0;
+                                    id(space_open) = currently_open;
                                 } else {
                                     ESP_LOGD("main", "JSON parse failed");
                                 }
