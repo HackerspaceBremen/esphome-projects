@@ -65,12 +65,16 @@ light:
     name: "Left Light"
     id: light_left
     output: output_light_left
+    restore_mode: ALWAYS_OFF
+    default_transition_length: 2s
     effects:
       - pulse:
   - platform: monochromatic
     name: "Right Light"
     id: light_right
     output: output_light_right
+    restore_mode: ALWAYS_OFF
+    default_transition_length: 2s
     effects:
       - pulse:
 
@@ -113,39 +117,28 @@ interval:
   - interval: 1s
     then:
       - lambda: |-
+          auto switch_lights = [&](bool turn_on) {
+            if (id(light_left).remote_values.is_on() != turn_on) {
+              ESP_LOGD("main", "Making left light %d, was %d", turn_on, id(light_left).remote_values.is_on());
+              id(light_left).make_call().set_state(turn_on).perform();
+            }
+            if (id(light_right).remote_values.is_on() != turn_on) {
+              ESP_LOGD("main", "Making right light %d, was %d", turn_on, id(light_right).remote_values.is_on());
+              id(light_right).make_call().set_state(turn_on).perform();
+            }
+          };
+
           if (id(manual_switch).state) {
             // Manual mode, just turn lights on if off
-
-            if (!id(light_left).current_values.is_on()) {
-                ESP_LOGD("main", "Turning left light on");
-                id(light_left).turn_on().perform();
-            }
-            if (!id(light_right).current_values.is_on()) {
-                ESP_LOGD("main", "Turning right light on");
-                id(light_right).turn_on().perform();
-            }
+            switch_lights(true);
           } else {
             // Auto mode, sun dictates light values
             const auto sun_elevation = id(sun_component).elevation();
             const auto sun_up = id(sun_component).elevation() > 5;
-            if (sun_up || id(space_open) == 0) {
-              if (id(light_left).current_values.is_on()) {
-                ESP_LOGD("main", "Turning left light off");
-                id(light_left).turn_off().perform();
-              }
-              if (id(light_right).current_values.is_on()) {
-                ESP_LOGD("main", "Turning right light off");
-                id(light_right).turn_off().perform();
-              }
+            if (sun_up || !id(space_open)) {
+              switch_lights(false);
             } else {
-              if (!id(light_left).current_values.is_on()) {
-                ESP_LOGD("main", "Turning left light on");
-                id(light_left).turn_on().perform();
-              }
-              if (!id(light_right).current_values.is_on()) {
-                ESP_LOGD("main", "Turning right light on");
-                id(light_right).turn_on().perform();
-              }
+              switch_lights(true);
             }
           }
   - interval: 1min
