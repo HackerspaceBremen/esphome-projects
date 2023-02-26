@@ -33,33 +33,62 @@ rack_hole_distance_big = 15.88;
 rack_hole_distance_small = 12.7;
 rack_hole_he = 2 * rack_hole_distance_big + rack_hole_distance_small;
 
-module m3_pillar() {
-    translate([-m3_insert_outer/2,-m3_insert_outer/2,-box_thickness]) cube([m3_insert_outer,m3_insert_outer,box_thickness]);
-    difference() {
-        translate([-m3_insert_outer/2,-m3_insert_outer/2,0]) cube([m3_insert_outer,m3_insert_outer,m3_insert_hole_depth]);
-        translate([0,0,0.001]) cylinder(h=m3_insert_hole_depth,d=m3_insert_hole_diameter);
+module
+m3_pillar()
+{
+    translate([ -m3_insert_outer / 2, -m3_insert_outer / 2, -box_thickness ])
+        cube([ m3_insert_outer, m3_insert_outer, box_thickness ]);
+    difference()
+    {
+        translate([ -m3_insert_outer / 2, -m3_insert_outer / 2, 0 ])
+            cube([ m3_insert_outer, m3_insert_outer, m3_insert_hole_depth ]);
+        translate([ 0, 0, 0.001 ])
+            cylinder(h = m3_insert_hole_depth, d = m3_insert_hole_diameter);
     }
 }
 
-module m3_pillar_top() {
-    translate([0,0,box_height-m3_insert_hole_depth]) {
+module
+m3_pillar_top()
+{
+    translate([ 0, 0, box_height - m3_insert_hole_depth ])
+    {
         m3_pillar();
-        translate([0,-m3_insert_outer/2,-box_thickness]) rotate([0,90,0]) linear_extrude(height=m3_insert_outer,center=true) {
-            polygon([[0,0],[0,m3_insert_outer],[m3_insert_outer/1.5,0]]);
+        translate([ 0, -m3_insert_outer / 2, -box_thickness ])
+            rotate([ 0, 90, 0 ])
+                linear_extrude(height = m3_insert_outer, center = true)
+        {
+            polygon([
+                [ 0, 0 ],
+                [ 0, m3_insert_outer ],
+                [ m3_insert_outer / 1.5, 0 ]
+            ]);
         }
     }
 }
 
-module m3_hole() {
-    translate([0,0,-lid_thickness]) cylinder(h=3*lid_thickness, d=3.3);
+module
+m3_hole()
+{
+    translate([ 0, 0, -lid_thickness ])
+        cylinder(h = 3 * lid_thickness, d = 3.3);
 }
 
-module lid() {
-    difference() {
-        translate([-box_thickness,-box_thickness,0]) cube([outer_box_width, outer_box_depth, lid_thickness]);
-        translate([upper_m3_holes_inset, m3_insert_outer/2, 0]) m3_hole();
-        translate([box_width-upper_m3_holes_inset, m3_insert_outer/2, 0]) m3_hole();
-        translate([upper_m3_holes_inset, box_depth-m3_insert_outer/2, 0]) m3_hole();
-        translate([box_width-upper_m3_holes_inset, box_depth-m3_insert_outer/2, 0]) m3_hole();
+module
+lid()
+{
+    difference()
+    {
+        translate([ -box_thickness, -box_thickness, 0 ])
+            cube([ outer_box_width, outer_box_depth, lid_thickness ]);
+        translate([ upper_m3_holes_inset, m3_insert_outer / 2, 0 ]) m3_hole();
+        translate([ box_width - upper_m3_holes_inset, m3_insert_outer / 2, 0 ])
+            m3_hole();
+        translate([ upper_m3_holes_inset, box_depth - m3_insert_outer / 2, 0 ])
+            m3_hole();
+        translate([
+            box_width - upper_m3_holes_inset,
+            box_depth - m3_insert_outer / 2,
+            0
+        ]) m3_hole();
     }
 }
