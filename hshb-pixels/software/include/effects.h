@@ -20,8 +20,7 @@ class HSHBPixelEffect {
 
   virtual void update_lcd(esphome::lcd_gpio::GPIOLCDDisplay &it,
                           uint64_t frame);
-  virtual void update_display(esphome::display::DisplayBuffer &it,
-                              uint64_t frame);
+  virtual void update_display(esphome::display::Display &it, uint64_t frame);
 
   virtual bool is_valid() { return true; }
 
@@ -32,8 +31,7 @@ class HSHBEsphomeLightEffect : public HSHBPixelEffect {
  public:
   bool enable_display() override { return false; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {}
+  void update_display(esphome::display::Display &it, uint64_t frame) override {}
 };
 
 class HSHBNoneEffect : public HSHBEsphomeLightEffect {
@@ -110,8 +108,7 @@ class HSHBShapesEffect : public HSHBPixelEffect {
 
   bool enable_display() override { return true; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {
+  void update_display(esphome::display::Display &it, uint64_t frame) override {
     const auto advance_shapes = (frame >= next_shapes_advance ||
                                  next_shapes_advance - frame > SHAPES_ADVANCE);
     const auto emplace_shape =
@@ -169,8 +166,7 @@ class HSHBOutlineEffect : public HSHBPixelEffect {
 
   bool enable_display() override { return true; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {
+  void update_display(esphome::display::Display &it, uint64_t frame) override {
     const auto color_index =
         ((frame % OUTLINE_TOTAL_LENGTH) / (2 * OUTLINE_PIXEL_COUNT));
     auto current_color = outline_colors[color_index];
@@ -202,8 +198,7 @@ class HSHBTextEffect : public HSHBPixelEffect {
 
   bool enable_display() override { return true; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {
+  void update_display(esphome::display::Display &it, uint64_t frame) override {
     frame %= (72 * 5);
     it.print(15 - (frame / 4), 11, &id(font_3x5), Color(20, 200, 115),
              "Hackerspace Bremen");
@@ -226,8 +221,7 @@ class HSHBMatrixEffect : public HSHBPixelEffect {
 
   bool enable_display() override { return true; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {
+  void update_display(esphome::display::Display &it, uint64_t frame) override {
     auto green = Color(80, 255, 80);
     if (fade_colors.size() == 0) {
       fade_colors.push_back(Color(20, 220, 20));
@@ -275,8 +269,7 @@ class HSHBTideEffect : public HSHBPixelEffect {
 
   bool enable_display() override { return true; }
 
-  void update_display(esphome::display::DisplayBuffer &it,
-                      uint64_t frame) override {
+  void update_display(esphome::display::Display &it, uint64_t frame) override {
     if (tide_shortname == "" ||
         (millis() - last_tide_request) > 1000 * TIDE_REFRESH_INTERVAL) {
       request_tide_data = true;
@@ -398,7 +391,7 @@ class HSHBPixelEffects {
     m_current_effect->update_lcd(it, m_frame);
   }
 
-  void update_display(esphome::display::DisplayBuffer &it) {
+  void update_display(esphome::display::Display &it) {
     m_current_effect->update_display(it, m_frame);
 
     if (m_frame > 0 && m_schedule_light_on) {
