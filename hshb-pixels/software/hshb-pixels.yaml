@@ -1,6 +1,6 @@
 esphome:
   name: hshb-pixels
-  comment: Software 2023 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects
+  comment: Software 2023-2024 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects
   includes:
     - include/pixel-layout.h
     - include/pixel-outline.h
@@ -24,8 +24,9 @@ api:
   reboot_timeout: 0s
 
 ota:
-  id: ota_comp
-  password: ""
+  - id: ota_comp
+    platform: esphome
+    password: ""
 
 web_server:
   ota: false
@@ -61,6 +62,7 @@ http_request:
   id: http_request_data
   useragent: esphome/hshb-pixels
   timeout: 5s
+  verify_ssl: false
 
 animation:
   - file: "waves.gif"
@@ -175,8 +177,8 @@ display:
       if (id(wifi_comp)->is_connected()) {
         auto ssid = id(wifi_comp)->wifi_ssid();
         it.printf(0, 0, "%s", ssid.c_str());
-        auto ip_addr = id(wifi_comp)->get_ip_address();
-        it.printf(0, 1, "IP: %d.%d.%d.%d", ip_addr[0], ip_addr[1], ip_addr[2], ip_addr[3]);
+        auto ip_addr = id(wifi_comp)->get_ip_addresses()[0];
+        it.printf(0, 1, "IP: %s", ip_addr.str().c_str());
         // auto use_addr = id(wifi_comp)->get_use_address();
         // it.printf(0, 2, "%s", use_addr.c_str());
       } else {
@@ -204,7 +206,7 @@ interval:
   - interval: 1min
     then:
       - lambda: |-
-          ESP_LOGD("main", "Software 2023 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
+          ESP_LOGD("main", "Software 2023-2024 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
   - interval: 1s
     then:
       - if:
@@ -221,9 +223,9 @@ interval:
                     return false;
                 then:
                   - http_request.get:
-                      verify_ssl: false
                       url: https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations/b26bfc88-eb8a-45b9-9dd0-0e41949a2648.json?includeTimeseries=true&includeCurrentMeasurement=true
+                      capture_response: true
                       on_response:
                         then:
                           - lambda: |-
-                              parse_tide_response(status_code);
+                              parse_tide_response(response->status_code, body);

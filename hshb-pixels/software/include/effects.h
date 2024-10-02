@@ -450,16 +450,15 @@ void sanitize_string(std::string &str) {
   replace(str, "ß", "SS");
 }
 
-void parse_tide_response(int status_code) {
+void parse_tide_response(int status_code, const std::string &body) {
   last_tide_request = millis();
   if (status_code == 200) {
-    auto str = id(http_request_data).get_string();
-    ESP_LOGD("effects", "HTTP Response: %s", str);
+    ESP_LOGD("effects", "HTTP Response: %s", body);
     tide_shortname = "?";
     tide_value = 0.0;
     tide_unit = "?";
     DynamicJsonDocument doc(2048);
-    if (deserializeJson(doc, str) == DeserializationError::Ok) {
+    if (deserializeJson(doc, body) == DeserializationError::Ok) {
       tide_shortname = (const char *)doc["shortname"];
       tide_value = doc["timeseries"][0]["currentMeasurement"]["value"];
       tide_unit = (const char *)doc["timeseries"][0]["unit"];
