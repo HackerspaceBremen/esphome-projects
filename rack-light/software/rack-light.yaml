@@ -115,7 +115,7 @@ interval:
   - interval: 1min
     then:
       - lambda: |-
-          ESP_LOGD("main", "Software 2023 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
+          ESP_LOGD("main", "Software 2023-2024 by ccoors, see https://github.com/HackerspaceBremen/esphome-projects");
   - interval: 1s
     then:
       - lambda: |-
@@ -154,23 +154,21 @@ interval:
                   binary_sensor.is_off: manual_switch
                 then:
                   - http_request.get:
-                      url: https://hackerspacehb.appspot.com/v2/status
+                      url: https://spacemanager.hackerspace-bremen.de/api/v1/spaceapi
                       capture_response: true
                       on_response:
                         then:
                           - lambda: |-
+                              ESP_LOGD("main", "HTTP Response: %s", body.c_str());
                               if (response->status_code == 200) {
-                                auto str = body.c_str();
-                                ESP_LOGD("main", "HTTP Response: %s", str);
-
-                                DynamicJsonDocument doc(2048);
-                                if (deserializeJson(doc, str) == DeserializationError::Ok) {
-                                    bool currently_open = doc["open"];
-                                    ESP_LOGD("main", "Space open: %d", currently_open);
-                                    id(space_open) = currently_open;
-                                } else {
-                                    ESP_LOGD("main", "JSON parse failed");
-                                }
+                                  if (!json::parse_json(body, [](JsonObject root) -> bool {
+                                      bool currently_open = root["state"] && root["state"]["open"];
+                                      ESP_LOGD("main", "Space open: %d", currently_open);
+                                      id(space_open) = currently_open;
+                                      return true;
+                                  })) {
+                                      ESP_LOGD("main", "JSON parse failed");
+                                  }
                               } else {
-                                ESP_LOGD("main", "HTTP error: %d", response->status_code);
+                                  ESP_LOGD("main", "HTTP status code %d != 200", response->status_code);
                               }
